@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HangWan Word Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Montserrat', sans-serif;
+        }
+        .hangman-part {
+            stroke: #374151;
+            stroke-width: 4;
+            stroke-linecap: round;
+            transition: opacity 0.3s ease-in-out;
+            opacity: 0;
+        }
+        /* Ensure the head uses only the pattern fill and no stroke so the face shows clearly */
+        #head {
+            stroke: none;
+        }
+        .hangman-part.visible {
+            opacity: 1;
+        }
+        .key {
+            transition: all 0.2s ease;
+        }
+        .key:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+        .key:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body class="bg-slate-100 flex items-center justify-center min-h-screen p-4">
+
+    <div class="w-full max-w-3xl mx-auto bg-white p-6 md:p-8 rounded-2xl shadow-xl text-center">
+        <h1 class="text-3xl md:text-4xl font-bold text-slate-800 mb-2">Hanging Wan</h1>
+    <p class="text-slate-500 mb-2" id="category-hint">Guess the word to save the man!</p>
+    <p class="text-slate-500 mb-4 font-medium" id="theme-hint">Theme: —</p>
+
+    <!-- Using bundled image as the hangman face -->
+
+        <div class="flex flex-col md:flex-row items-center justify-around gap-8 my-8">
+            <!-- Hangman Drawing -->
+            <div class="w-48 h-64 relative">
+                <svg viewBox="0 0 200 250" class="w-full h-full">
+                    <!-- SVG definitions for the image pattern -->
+                    <defs>
+                        <pattern id="head-pattern" patternContentUnits="objectBoundingBox" width="1" height="1">
+                                <image id="head-image" href="WhatsApp%20Image%202025-08-22%20at%2015.41.16_43a2cf34.jpg" x="0" y="0" width="1" height="1" preserveAspectRatio="xMidYMid slice" />
+                            </pattern>
+                    </defs>
+                    <!-- Gallows -->
+                    <line x1="10" y1="230" x2="130" y2="230" style="stroke:#374151; stroke-width:4;"></line> <!-- Base -->
+                    <line x1="70" y1="230" x2="70" y2="20" style="stroke:#374151; stroke-width:4;"></line> <!-- Pole -->
+                    <line x1="70" y1="20" x2="150" y2="20" style="stroke:#374151; stroke-width:4;"></line> <!-- Beam -->
+                    <line x1="150" y1="20" x2="150" y2="50" style="stroke:#374151; stroke-width:4;"></line> <!-- Rope -->
+
+                    <!-- Man -->
+                    <circle id="head" class="hangman-part" cx="150" cy="70" r="20" fill="url(#head-pattern)" stroke="none"></circle>
+                    <line id="body" class="hangman-part" x1="150" y1="90" x2="150" y2="150"></line>
+                    <line id="arm-left" class="hangman-part" x1="150" y1="110" x2="120" y2="130"></line>
+                    <line id="arm-right" class="hangman-part" x1="150" y1="110" x2="180" y2="130"></line>
+                    <line id="leg-left" class="hangman-part" x1="150" y1="150" x2="120" y2="180"></line>
+                    <line id="leg-right" class="hangman-part" x1="150" y1="150" x2="180" y2="180"></line>
+                </svg>
+            </div>
+
+            <!-- Word Display and Message Area -->
+            <div class="flex flex-col justify-center items-center">
+                <div id="word-display" class="flex gap-2 md:gap-3 text-3xl md:text-4xl font-bold text-slate-700 mb-8 tracking-widest">
+                    <!-- Word underscores will be generated here -->
+                </div>
+                <div id="message-area" class="h-16 text-2xl font-semibold">
+                    <!-- Game messages (win/lose) will appear here -->
+                </div>
+                <button id="play-again-btn" class="bg-blue-600 text-white font-bold py-3 px-8 rounded-lg shadow-md hover:bg-blue-700 transition-transform hover:scale-105" style="display: none;">Play Again</button>
+            </div>
+        </div>
+
+        <!-- Keyboard -->
+        <div id="keyboard" class="flex flex-wrap justify-center gap-2 mt-4">
+            <!-- Keyboard buttons will be generated here -->
+        </div>
+    </div>
+
+    <script>
+        const wordDisplay = document.getElementById('word-display');
+        const keyboardContainer = document.getElementById('keyboard');
+        const messageArea = document.getElementById('message-area');
+        const playAgainBtn = document.getElementById('play-again-btn');
+        const categoryHint = document.getElementById('category-hint');
+        const hangmanParts = document.querySelectorAll('.hangman-part');
+    const headImage = document.getElementById('head-image');
+
+        const wordList = [
+            "ELEPHANT", "GIRAFFE", "KANGAROO", "PENGUIN", "TIGER", "CROCODILE", "HIPPOPOTAMUS",
+            "MALAYSIA", "JAPAN", "BRAZIL", "CANADA", "EGYPT", "AUSTRALIA", "ARGENTINA",
+            "JAVASCRIPT", "PYTHON", "HTML", "REACT", "GEMINI", "ALGORITHM", "DATABASE",
+            "STRAWBERRY", "PINEAPPLE", "WATERMELON", "BLUEBERRY", "MANGO", "RASPBERRY", "PAPAYA",
+            "SPACESHIP", "GALAXY", "UNIVERSE", "PLANET", "ASTEROID", "NEBULA", "SUPERNOVA",
+            "MOUNTAIN", "VOLCANO", "RIVER", "OCEAN", "DESERT", "FOREST", "WATERFALL"
+        ];
+        
+        let usedWords = [];
+        let secretWord = '';
+        let guessedLetters = [];
+        let incorrectGuesses = 0;
+        const maxIncorrectGuesses = 6;
+
+        function getNewWord() {
+            let availableWords = wordList.filter(word => !usedWords.includes(word));
+            
+            if (availableWords.length === 0) {
+                usedWords = [];
+                availableWords = wordList;
+            }
+            
+            return availableWords[Math.floor(Math.random() * availableWords.length)];
+        }
+
+        function initGame() {
+            guessedLetters = [];
+            incorrectGuesses = 0;
+            messageArea.textContent = '';
+            playAgainBtn.style.display = 'none';
+
+            secretWord = getNewWord();
+            usedWords.push(secretWord);
+            
+            categoryHint.textContent = `Can you guess the ${secretWord.length}-letter word?`;
+            // Update theme hint
+            const theme = detectTheme(secretWord);
+            themeHint.textContent = `Theme: ${theme}`;
+
+            createKeyboard();
+            displayWord();
+            updateHangman();
+        }
+
+        function createKeyboard() {
+            keyboardContainer.innerHTML = '';
+            'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').forEach(letter => {
+                const button = document.createElement('button');
+                button.textContent = letter;
+                button.className = 'key w-10 h-10 md:w-12 md:h-12 bg-slate-200 rounded-lg font-bold text-slate-700 hover:bg-slate-300';
+                button.addEventListener('click', () => handleGuess(letter));
+                keyboardContainer.appendChild(button);
+            });
+        }
+
+        function displayWord() {
+            wordDisplay.innerHTML = secretWord
+                .split('')
+                .map(letter => `<span class="border-b-4 border-slate-400 w-8 text-center">${guessedLetters.includes(letter) ? letter : ''}</span>`)
+                .join('');
+            
+            checkWin();
+        }
+
+        function handleGuess(letter) {
+            if (guessedLetters.includes(letter) || incorrectGuesses >= maxIncorrectGuesses) {
+                return;
+            }
+
+            guessedLetters.push(letter);
+            
+            const buttons = keyboardContainer.getElementsByTagName('button');
+            for (let btn of buttons) {
+                if (btn.textContent === letter) {
+                    btn.disabled = true;
+                }
+            }
+
+            if (secretWord.includes(letter)) {
+                displayWord();
+            } else {
+                incorrectGuesses++;
+                updateHangman();
+                checkLose();
+            }
+        }
+
+        function updateHangman() {
+            hangmanParts.forEach((part, index) => {
+                if (index < incorrectGuesses) {
+                    part.classList.add('visible');
+                } else {
+                    part.classList.remove('visible');
+                }
+            });
+        }
+
+        function checkWin() {
+            const isWinner = secretWord.split('').every(letter => guessedLetters.includes(letter));
+            if (isWinner) {
+                messageArea.textContent = '🎉 You Won! 🎉';
+                messageArea.style.color = '#16A34A';
+                endGame();
+            }
+        }
+
+        function checkLose() {
+            if (incorrectGuesses >= maxIncorrectGuesses) {
+                messageArea.textContent = 'You Lost!';
+                messageArea.style.color = '#DC2626';
+                wordDisplay.innerHTML = secretWord
+                    .split('')
+                    .map(letter => `<span class="border-b-4 border-red-400 w-8 text-center text-red-600">${letter}</span>`)
+                    .join('');
+                endGame();
+            }
+        }
+        
+        function endGame() {
+            const buttons = keyboardContainer.getElementsByTagName('button');
+            for (let btn of buttons) {
+                btn.disabled = true;
+            }
+            playAgainBtn.style.display = 'block';
+        }
+
+
+        const themeHint = document.getElementById('theme-hint');
+
+        function detectTheme(word) {
+            const animals = ["ELEPHANT","GIRAFFE","KANGAROO","PENGUIN","TIGER","CROCODILE","HIPPOPOTAMUS"];
+            const countries = ["MALAYSIA","JAPAN","BRAZIL","CANADA","EGYPT","AUSTRALIA","ARGENTINA"];
+            const tech = ["JAVASCRIPT","PYTHON","HTML","REACT","GEMINI","ALGORITHM","DATABASE"];
+            const fruits = ["STRAWBERRY","PINEAPPLE","WATERMELON","BLUEBERRY","MANGO","RASPBERRY","PAPAYA"];
+            const space = ["SPACESHIP","GALAXY","UNIVERSE","PLANET","ASTEROID","NEBULA","SUPERNOVA"];
+            const nature = ["MOUNTAIN","VOLCANO","RIVER","OCEAN","DESERT","FOREST","WATERFALL"];
+
+            if (animals.includes(word)) return 'Animals';
+            if (countries.includes(word)) return 'Countries';
+            if (tech.includes(word)) return 'Technology';
+            if (fruits.includes(word)) return 'Fruits';
+            if (space.includes(word)) return 'Space';
+            if (nature.includes(word)) return 'Nature';
+            return 'General';
+        }
+
+        playAgainBtn.addEventListener('click', initGame);
+
+        // Start the first game
+        initGame();
+
+    </script>
+</body>
+</html>
