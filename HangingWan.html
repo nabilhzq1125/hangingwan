@@ -42,6 +42,10 @@
 
     <div class="w-full max-w-3xl mx-auto bg-white p-6 md:p-8 rounded-2xl shadow-xl text-center">
         <h1 class="text-3xl md:text-4xl font-bold text-slate-800 mb-2">Hanging Wan</h1>
+
+        <!-- New score display -->
+        <div id="score-display" class="text-lg font-semibold text-slate-700 mb-2">Score: 0</div>
+
     <p class="text-slate-500 mb-2" id="category-hint">Guess the word to save the man!</p>
     <p class="text-slate-500 mb-4 font-medium" id="theme-hint">Theme: —</p>
 
@@ -91,6 +95,9 @@
         </div>
     </div>
 
+    <!-- Load score manager BEFORE the main inline game script -->
+    <script src="score/scoreManager.js"></script>
+
     <script>
         const wordDisplay = document.getElementById('word-display');
         const keyboardContainer = document.getElementById('keyboard');
@@ -98,7 +105,10 @@
         const playAgainBtn = document.getElementById('play-again-btn');
         const categoryHint = document.getElementById('category-hint');
         const hangmanParts = document.querySelectorAll('.hangman-part');
-    const headImage = document.getElementById('head-image');
+        const headImage = document.getElementById('head-image');
+
+        // New: score display element
+        const scoreDisplay = document.getElementById('score-display');
 
         const wordList = [
             "ELEPHANT","GIRAFFE","KANGAROO","PENGUIN","TIGER","CROCODILE","HIPPOPOTAMUS",
@@ -213,6 +223,12 @@
             createKeyboard();
             displayWord();
             updateHangman();
+
+            // Initialize score display from score manager
+            if (window.scoreManager && typeof window.scoreManager.getScore === 'function') {
+                scoreDisplay.textContent = `Score: ${window.scoreManager.getScore()}`;
+            }
+
         }
 
         function createKeyboard() {
@@ -273,6 +289,11 @@
             if (isWinner) {
                 messageArea.textContent = '🎉 You Won! 🎉';
                 messageArea.style.color = '#16A34A';
+                // Award points on win
+                if (window.scoreManager && typeof window.scoreManager.addScore === 'function') {
+                    window.scoreManager.addScore(10);
+                    scoreDisplay.textContent = `Score: ${window.scoreManager.getScore()}`;
+                }
                 endGame();
             }
         }
@@ -285,6 +306,11 @@
                     .split('')
                     .map(letter => `<span class="border-b-4 border-red-400 w-8 text-center text-red-600">${letter}</span>`)
                     .join('');
+                // Reset score on loss
+                if (window.scoreManager && typeof window.scoreManager.resetScore === 'function') {
+                    window.scoreManager.resetScore();
+                    scoreDisplay.textContent = `Score: ${window.scoreManager.getScore()}`;
+                }
                 endGame();
             }
         }
